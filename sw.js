@@ -1,4 +1,4 @@
-const CACHE_NAME = 'financier-v2';
+const CACHE_NAME = 'mysquare-v1';
 const urlsToCache = [
   './',
   './index.html',

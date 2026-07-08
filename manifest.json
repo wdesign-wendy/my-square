@@ -1,6 +1,6 @@
 {
-  "name": "Financier",
-  "short_name": "Financier",
+  "name": "My Square",
+  "short_name": "My Square",
   "description": "Smart Expense Tracker",
   "start_url": "./index.html",
   "display": "standalone",
