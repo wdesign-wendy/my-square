@@ -74,6 +74,8 @@
     <script src="https://unpkg.com/react-router@6.3.0/umd/react-router.development.js"></script>
     <script src="https://unpkg.com/react-router-dom@6.3.0/umd/react-router-dom.development.js"></script>
     <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+    <!-- Supabase JS Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body class="bg-surface text-on-surface">
     <div id="root"></div>
@@ -87,6 +89,12 @@
         const DataContext = createContext(null);
         
         const formatCurrency = (val) => new Intl.NumberFormat('ko-KR').format(val || 0);
+
+        // Supabase Client Initialization
+        const { createClient } = supabase;
+        const supabaseUrl = 'https://akhucfammjztmkkanrgx.supabase.co';
+        const supabaseKey = 'sb_publishable_vdE2O8Bwg-ScKeFDRCMl8g_ljs_AdwP';
+        const supabaseClient = createClient(supabaseUrl, supabaseKey);
 
         const DataProvider = ({ children }) => {
             const defaultExpenses = [
@@ -111,29 +119,128 @@
                 return saved ? JSON.parse(saved) : defaultCards;
             });
 
-            useEffect(() => {
-                localStorage.setItem('financier_expenses', JSON.stringify(expenses));
-            }, [expenses]);
-
-            useEffect(() => {
-                localStorage.setItem('financier_cards', JSON.stringify(cards));
-            }, [cards]);
-
             const defaultCategories = ['식비', '교통', '전자제품', '가구', '기타'];
             const [categories, setCategories] = useState(() => {
                 const saved = localStorage.getItem('financier_categories');
                 return saved ? JSON.parse(saved) : defaultCategories;
             });
+
+            const [user, setUser] = useState(null);
+            const [hasSynced, setHasSynced] = useState(false);
+            const [isLoading, setIsLoading] = useState(true);
+
+            // Auth State Change listener
             useEffect(() => {
-                localStorage.setItem('financier_categories', JSON.stringify(categories));
-            }, [categories]);
+                supabaseClient.auth.getSession().then(({ data: { session } }) => {
+                    setUser(session?.user ?? null);
+                    setIsLoading(false);
+                });
+
+                const { data: { subscription } } = supabaseClient.auth.onAuthStateChange((_event, session) => {
+                    setUser(session?.user ?? null);
+                });
+
+                return () => subscription.unsubscribe();
+            }, []);
+
+            // Fetch cloud data when logged in
+            useEffect(() => {
+                if (!user) {
+                    setHasSynced(false);
+                    return;
+                }
+
+                const fetchUserData = async () => {
+                    setIsLoading(true);
+                    const { data, error } = await supabaseClient
+                        .from('user_data')
+                        .select('data')
+                        .eq('user_id', user.id)
+                        .single();
+
+                    if (error && error.code !== 'PGRST116') {
+                        console.error('Error fetching user data:', error);
+                        setHasSynced(true);
+                        setIsLoading(false);
+                        return;
+                    }
+
+                    if (data && data.data && Object.keys(data.data).length > 0) {
+                        if (data.data.expenses) setExpenses(data.data.expenses);
+                        if (data.data.cards) setCards(data.data.cards);
+                        if (data.data.categories) setCategories(data.data.categories);
+                    } else {
+                        // First-time login: sync existing local storage data to cloud
+                        await supabaseClient
+                            .from('user_data')
+                            .upsert({
+                                user_id: user.id,
+                                data: { expenses, cards, categories },
+                                updated_at: new Date().toISOString()
+                            });
+                    }
+                    setHasSynced(true);
+                    setIsLoading(false);
+                };
+
+                fetchUserData();
+            }, [user]);
+
+            // Save to localStorage (if offline/guest) or Supabase (if logged in)
+            useEffect(() => {
+                if (!user) {
+                    localStorage.setItem('financier_expenses', JSON.stringify(expenses));
+                    localStorage.setItem('financier_cards', JSON.stringify(cards));
+                    localStorage.setItem('financier_categories', JSON.stringify(categories));
+                    return;
+                }
+
+                if (!hasSynced) return; // Prevent overwriting cloud data during initial sync
+
+                const delayDebounce = setTimeout(async () => {
+                    const { error } = await supabaseClient
+                        .from('user_data')
+                        .upsert({
+                            user_id: user.id,
+                            data: { expenses, cards, categories },
+                            updated_at: new Date().toISOString()
+                        });
+                    if (error) console.error('Failed to sync to cloud:', error);
+                }, 1000);
+
+                return () => clearTimeout(delayDebounce);
+            }, [expenses, cards, categories, user, hasSynced]);
 
             const addExpense = (exp) => setExpenses(prev => [...prev, exp]);
             const updateExpense = (id, newExp) => setExpenses(prev => prev.map(e => e.id === id ? newExp : e));
             const deleteExpense = (id) => setExpenses(prev => prev.filter(e => e.id !== id));
 
+            const handleKakaoLogin = async () => {
+                const { error } = await supabaseClient.auth.signInWithOAuth({
+                    provider: 'kakao',
+                    options: {
+                        redirectTo: window.location.origin
+                    }
+                });
+                if (error) console.error('Kakao login failed:', error);
+            };
+
+            const handleLogout = async () => {
+                await supabaseClient.auth.signOut();
+                const localExpenses = localStorage.getItem('financier_expenses');
+                setExpenses(localExpenses ? JSON.parse(localExpenses) : defaultExpenses);
+                const localCards = localStorage.getItem('financier_cards');
+                setCards(localCards ? JSON.parse(localCards) : defaultCards);
+                const localCategories = localStorage.getItem('financier_categories');
+                setCategories(localCategories ? JSON.parse(localCategories) : defaultCategories);
+            };
+
             return (
-                <DataContext.Provider value={{ expenses, addExpense, updateExpense, deleteExpense, cards, setCards, categories, setCategories }}>
+                <DataContext.Provider value={{ 
+                    expenses, addExpense, updateExpense, deleteExpense, 
+                    cards, setCards, categories, setCategories, 
+                    user, handleLogout, handleKakaoLogin, isLoading 
+                }}>
                     {children}
                 </DataContext.Provider>
             );
@@ -583,7 +690,7 @@
 
         // Screen 2: Installment Archive
         const ArchivePage = () => {
-            const { expenses, cards, setCards, categories, setCategories } = useContext(DataContext);
+            const { expenses, cards, setCards, categories, setCategories, user, handleLogout, handleKakaoLogin, isLoading } = useContext(DataContext);
             const [isAddingCard, setIsAddingCard] = useState(false);
             const [newCardName, setNewCardName] = useState('');
             const [newCardNickname, setNewCardNickname] = useState('');
@@ -592,11 +699,48 @@
             const [isAddingCategory, setIsAddingCategory] = useState(false);
             const [newCategory, setNewCategory] = useState('');
 
-
             return (
                 <div className="min-h-screen pb-32 bg-surface">
                     <TopAppBar title="My Square" />
                     <main className="pt-24 px-6 max-w-md mx-auto min-h-screen">
+                        {/* Auth Section */}
+                        <section className="mb-8 p-6 bg-surface-container-low rounded-[2rem] border border-outline-variant/10 shadow-sm">
+                            {isLoading ? (
+                                <div className="flex justify-center py-2">
+                                    <span className="text-xs text-on-surface-variant font-semibold animate-pulse">사용자 정보 확인 중...</span>
+                                </div>
+                            ) : user ? (
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary text-sm">
+                                            {user.user_metadata?.name?.charAt(0) || user.email?.charAt(0) || 'U'}
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-sm text-on-surface">{user.user_metadata?.name || user.email || '사용자'}</p>
+                                            <p className="text-[10px] text-green-600 dark:text-green-400 font-bold flex items-center gap-1 mt-0.5">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+                                                클라우드 동기화 중
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <button onClick={handleLogout} className="text-xs font-bold text-on-surface-variant bg-surface-container-high px-3 py-1.5 rounded-full hover:bg-surface-container-highest transition-colors">
+                                        로그아웃
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    <div className="space-y-1">
+                                        <h3 className="font-bold text-sm text-on-surface">클라우드 동기화</h3>
+                                        <p className="text-xs text-on-surface-variant leading-relaxed">카카오톡으로 로그인하고 내 데이터를 안전하게 클라우드에 백업하세요. 다른 기기에서도 이어서 사용할 수 있습니다.</p>
+                                    </div>
+                                    <button onClick={handleKakaoLogin} className="w-full py-3.5 bg-[#FEE500] hover:bg-[#FEE500]/90 text-[#191919] font-bold rounded-full text-xs flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.98]">
+                                        <span className="material-symbols-outlined text-[16px]">chat_bubble</span>
+                                        카카오톡으로 로그인
+                                    </button>
+                                </div>
+                            )}
+                        </section>
+
                         <section className="mb-12">
                             <div className="flex justify-between items-center mb-4">
                                 <h2 className="text-on-surface font-extrabold text-xl">보유 중인 카드</h2>
