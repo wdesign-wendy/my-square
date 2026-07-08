@@ -1,0 +1,17 @@
+{
+  "name": "Financier",
+  "short_name": "Financier",
+  "description": "Smart Expense Tracker",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#fbf8ff",
+  "theme_color": "#1A237E",
+  "icons": [
+    {
+      "src": "icon512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

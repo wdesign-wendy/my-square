@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html class="light" lang="ko">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Financier - Smart Expense Tracker</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link rel="manifest" href="./manifest.json">
+    <link rel="apple-touch-icon" href="./icon512.png">
+    <meta name="theme-color" content="#1A237E">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Financier">
+    <link as="style" crossorigin="" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#1A237E",
+                        "primary-container": "#1a237e",
+                        "on-primary": "#ffffff",
+                        "on-primary-container": "#8690ee",
+                        "secondary": "#1b6d24",
+                        "secondary-container": "#a0f399",
+                        "on-secondary": "#ffffff",
+                        "on-secondary-container": "#217128",
+                        "surface": "#fbf8ff",
+                        "surface-variant": "#e4e1ea",
+                        "on-surface": "#1b1b21",
+                        "on-surface-variant": "#454652",
+                        "outline": "#767683",
+                        "outline-variant": "#c6c5d4",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container-low": "#f5f2fb",
+                        "surface-container": "#efecf5",
+                        "surface-container-high": "#eae7ef",
+                        "surface-container-highest": "#e4e1ea",
+                        "secondary-fixed": "#a3f69c",
+                        "tertiary-container": "#610f16",
+                        "on-tertiary-container": "#e87575",
+                    },
+                    fontFamily: {
+                        "sans": ['Manrope', 'Pretendard Variable', 'sans-serif'],
+                        "headline": ['Manrope', 'Pretendard Variable', 'sans-serif'],
+                        "body": ['Manrope', 'Pretendard Variable', 'sans-serif'],
+                        "label": ['Manrope', 'Pretendard Variable', 'sans-serif']
+                    },
+                    borderRadius: {"DEFAULT": "0.375rem", "md": "0.375rem", "lg": "0.5rem", "xl": "0.75rem", "2xl": "1rem", "3xl": "1.5rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+    <style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            font-family: 'Manrope', 'Pretendard Variable', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            letter-spacing: -0.02em;
+            min-height: max(884px, 100dvh);
+        }
+        .donut-segment {
+            transition: stroke-dashoffset 1s ease-in-out, stroke 0.3s ease;
+        }
+    </style>
+    <!-- Core Libraries -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/history@5/umd/history.development.js"></script>
+    <script src="https://unpkg.com/react-router@6.3.0/umd/react-router.development.js"></script>
+    <script src="https://unpkg.com/react-router-dom@6.3.0/umd/react-router-dom.development.js"></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+</head>
+<body class="bg-surface text-on-surface">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, createContext, useContext } = React;
+        const { createRoot } = ReactDOM;
+        const { MemoryRouter, Routes, Route, Link, useNavigate, useLocation } = ReactRouterDOM;
+
+        // --- Context & State ---
+        const DataContext = createContext(null);
+        
+        const formatCurrency = (val) => new Intl.NumberFormat('ko-KR').format(val || 0);
+
+        const DataProvider = ({ children }) => {
+            const defaultExpenses = [
+                { id: '1', title: '애플 스토어', amount: 2490000, date: new Date().toISOString().split('T')[0], category: '전자제품', card: '현대 제로', isInstallment: true, months: 12, monthlyAmount: 207500 },
+                { id: '2', title: '더 블루 오이스터', amount: 84200, date: new Date().toISOString().split('T')[0], category: '식비', card: '신한 Deep', isInstallment: false, months: 1, monthlyAmount: 84200 },
+                { id: '3', title: '모던 소파 세트', amount: 1200000, date: new Date(new Date().setMonth(new Date().getMonth() - 2)).toISOString().split('T')[0], category: '가구', card: '국민 Star', isInstallment: true, months: 6, monthlyAmount: 200000 },
+            ];
+
+            const [expenses, setExpenses] = useState(() => {
+                const saved = localStorage.getItem('financier_expenses');
+                return saved ? JSON.parse(saved) : defaultExpenses;
+            });
+
+            const defaultCards = [
+                { id: 'c1', name: '현대 제로', nickname: '기본 할인 카드' },
+                { id: 'c2', name: '신한 Deep', nickname: '' },
+                { id: 'c3', name: '국민 Star', nickname: '' },
+            ];
+
+            const [cards, setCards] = useState(() => {
+                const saved = localStorage.getItem('financier_cards');
+                return saved ? JSON.parse(saved) : defaultCards;
+            });
+
+            useEffect(() => {
+                localStorage.setItem('financier_expenses', JSON.stringify(expenses));
+            }, [expenses]);
+
+            useEffect(() => {
+                localStorage.setItem('financier_cards', JSON.stringify(cards));
+            }, [cards]);
+
+            const defaultCategories = ['식비', '교통', '전자제품', '가구', '기타'];
+            const [categories, setCategories] = useState(() => {
+                const saved = localStorage.getItem('financier_categories');
+                return saved ? JSON.parse(saved) : defaultCategories;
+            });
+            useEffect(() => {
+                localStorage.setItem('financier_categories', JSON.stringify(categories));
+            }, [categories]);
+
+            const addExpense = (exp) => setExpenses(prev => [...prev, exp]);
+            const updateExpense = (id, newExp) => setExpenses(prev => prev.map(e => e.id === id ? newExp : e));
+            const deleteExpense = (id) => setExpenses(prev => prev.filter(e => e.id !== id));
+
+            return (
+                <DataContext.Provider value={{ expenses, addExpense, updateExpense, deleteExpense, cards, setCards, categories, setCategories }}>
+                    {children}
+                </DataContext.Provider>
+            );
+        };
+
+        // --- Shared Components ---
+        const TopAppBar = ({ title, showBack = false }) => {
+            const navigate = useNavigate();
+            return (
+                <header className="fixed top-0 w-full z-50 bg-surface/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-outline-variant/10">
+                    <div className="flex justify-between items-center px-6 h-16 w-full max-w-md mx-auto">
+                        <div className="flex items-center gap-3">
+                            {showBack ? (
+                                <button onClick={() => navigate(-1)} className="material-symbols-outlined text-primary dark:text-blue-400">arrow_back</button>
+                            ) : (
+                                <span className="material-symbols-outlined text-primary dark:text-blue-400">account_balance_wallet</span>
+                            )}
+                            <h1 className="font-bold text-lg tracking-tight text-primary dark:text-blue-400">{title}</h1>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <Link to="/add-expense" className="bg-primary text-on-primary px-4 py-1.5 rounded-full text-sm font-medium hover:opacity-80 active:scale-95 transition-all">
+                                지출 추가
+                            </Link>
+                        </div>
+                    </div>
+                </header>
+            );
+        };
+
+        const BottomNavBar = () => {
+            const location = useLocation();
+            const getActiveClasses = (path) => location.pathname === path 
+                ? "text-primary dark:text-blue-400 font-bold bg-surface-container dark:bg-slate-800 rounded-xl px-4 py-1 shadow-sm" 
+                : "text-on-surface-variant opacity-60 hover:text-primary transition-all";
+
+            return (
+                <nav className="fixed bottom-0 left-0 w-full z-50 rounded-t-[1.5rem] bg-surface/80 dark:bg-slate-950/80 backdrop-blur-xl border-t border-outline-variant/15 shadow-[0_-4px_24px_rgba(27,27,33,0.06)]">
+                    <div className="flex justify-around items-center px-4 pb-8 pt-3 max-w-md mx-auto h-24">
+                        <Link to="/" className={`flex flex-col items-center justify-center ${getActiveClasses('/')}`}>
+                            <span className={`material-symbols-outlined ${location.pathname === '/' ? 'fill-icon' : ''}`} style={{fontVariationSettings: location.pathname === '/' ? "'FILL' 1" : "'FILL' 0"}}>dashboard</span>
+                            <span className="font-bold text-[9px] uppercase tracking-widest mt-1">대시보드</span>
+                        </Link>
+                        <Link to="/timeline" className={`flex flex-col items-center justify-center ${getActiveClasses('/timeline')}`}>
+                            <span className="material-symbols-outlined" style={{fontVariationSettings: location.pathname === '/timeline' ? "'FILL' 1" : "'FILL' 0"}}>event_repeat</span>
+                            <span className="font-bold text-[9px] uppercase tracking-widest mt-1">타임라인</span>
+                        </Link>
+                        <Link to="/archive" className={`flex flex-col items-center justify-center ${getActiveClasses('/archive')}`}>
+                            <span className="material-symbols-outlined" style={{fontVariationSettings: location.pathname === '/archive' ? "'FILL' 1" : "'FILL' 0"}}>inventory_2</span>
+                            <span className="font-bold text-[9px] uppercase tracking-widest mt-1">아카이브</span>
+                        </Link>
+                    </div>
+                </nav>
+            );
+        };
+
+        // --- Screens ---
+
+        // Screen 3: Dashboard
+        const DashboardPage = () => {
+            const { expenses, categories } = useContext(DataContext);
+            const now = new Date();
+            const currentYear = now.getFullYear();
+            const currentMonth = now.getMonth();
+            
+            const nextMonthDate = new Date(currentYear, currentMonth + 1, 1);
+            const nextYearNum = nextMonthDate.getFullYear();
+            const nextMonthNum = nextMonthDate.getMonth();
+
+            const [sortMode, setSortMode] = useState('balance');
+            const currentMonths = currentYear * 12 + currentMonth;
+
+            const activeInstallments = expenses.filter(exp => {
+                if (!exp.isInstallment) return false;
+                const expDate = new Date(exp.date);
+                const startMonths = expDate.getFullYear() * 12 + expDate.getMonth();
+                return currentMonths >= startMonths && currentMonths < startMonths + exp.months;
+            }).map(exp => {
+                const expDate = new Date(exp.date);
+                const startMonths = expDate.getFullYear() * 12 + expDate.getMonth();
+                const paidMonths = currentMonths - startMonths + 1;
+                const remainingBalance = exp.amount - (exp.monthlyAmount * paidMonths);
+                const endMonths = startMonths + exp.months - 1;
+                const endDateObj = new Date(Math.floor(endMonths / 12), endMonths % 12 + 1, 0);
+                const endDateStr = `${endDateObj.getFullYear()}년 ${endDateObj.getMonth() + 1}월`;
+                return { ...exp, paidMonths, remainingBalance, progressPercent: (paidMonths / exp.months) * 100, endDateStr, endMonths };
+            }).sort((a,b) => {
+                if (sortMode === 'balance') return b.remainingBalance - a.remainingBalance;
+                else return a.endMonths - b.endMonths;
+            });
+
+            const activeTotalBalance = activeInstallments.reduce((acc, exp) => acc + Math.max(0, exp.remainingBalance), 0);
+
+            const getMonthStats = (year, month) => {
+                let lumpSum = 0;
+                let installment = 0;
+                const categoryStats = {};
+                categories.forEach(cat => categoryStats[cat] = 0);
+                const cardStats = {};
+
+                expenses.forEach(exp => {
+                    const expDate = new Date(exp.date);
+                    const expYear = expDate.getFullYear();
+                    const expMonth = expDate.getMonth();
+                    
+                    let allocated = 0;
+                    
+                    if (!exp.isInstallment && expYear === year && expMonth === month) {
+                        allocated = exp.amount;
+                        lumpSum += exp.amount;
+                    } else if (exp.isInstallment) {
+                        const MathFloor = Math.floor;
+                        const startMonths = expYear * 12 + expMonth;
+                        const targetMonths = year * 12 + month;
+                        if (targetMonths >= startMonths && targetMonths < startMonths + exp.months) {
+                            allocated = exp.monthlyAmount;
+                            installment += exp.monthlyAmount;
+                        }
+                    }
+                    
+                    if (allocated > 0) {
+                        const cat = categoryStats[exp.category] !== undefined ? exp.category : '기타';
+                        if (categoryStats[cat] === undefined) categoryStats[cat] = 0;
+                        categoryStats[cat] += allocated;
+
+                        const c = exp.card || '기타';
+                        if (!cardStats[c]) cardStats[c] = 0;
+                        cardStats[c] += allocated;
+                    }
+                });
+
+                return { lumpSum, installment, total: lumpSum + installment, categoryStats, cardStats };
+            };
+
+            const currentStats = getMonthStats(currentYear, currentMonth);
+            const nextStats = getMonthStats(nextYearNum, nextMonthNum);
+
+            const total = currentStats.total;
+            const lumpSumRatio = total > 0 ? (currentStats.lumpSum / total) * 100 : 0;
+            const installmentRatio = total > 0 ? (currentStats.installment / total) * 100 : 0;
+
+            const categoryItems = Object.entries(currentStats.categoryStats)
+                .filter(([_, value]) => value > 0)
+                .sort((a, b) => b[1] - a[1]);
+
+            const cardItems = Object.entries(currentStats.cardStats)
+                .sort((a, b) => b[1] - a[1]);
+
+            const CATEGORY_STYLES = ['#000666', '#1b6d24', '#e87575', '#8690ee', '#767683', '#a3f69c', '#610f16', '#217128', '#c6c5d4', '#e4e1ea'];
+            const CAT_COLORS = {};
+            categories.forEach((cat, idx) => {
+                CAT_COLORS[cat] = CATEGORY_STYLES[idx % CATEGORY_STYLES.length];
+            });
+
+            const totalCategoryAmount = Math.max(total, 1);
+            let currentRotation = -90; 
+
+            return (
+                <div className="min-h-screen pb-32 bg-surface">
+                    <TopAppBar title="Financier" />
+                    <main className="pt-24 px-6 max-w-md mx-auto space-y-12">
+                        <section className="space-y-2">
+                            <p className="text-on-surface-variant font-semibold text-xs uppercase tracking-[0.15em]">이번 달 예정 지출</p>
+                            <div className="flex items-baseline gap-1">
+                                <span className="text-primary font-bold text-2xl self-start mt-2">₩</span>
+                                <h1 className="text-primary font-extrabold text-5xl tracking-tighter">{formatCurrency(currentStats.total)}</h1>
+                            </div>
+                            <div className="pt-8 space-y-1">
+                                <p className="text-on-surface-variant font-semibold text-xs uppercase tracking-[0.15em]">다음 달 예상 지출</p>
+                                <p className="text-primary/60 font-bold text-3xl tracking-tight">₩{formatCurrency(nextStats.total)}</p>
+                            </div>
+                        </section>
+
+                        <section className="space-y-6">
+                            <div className="flex justify-between items-center">
+                                <h2 className="text-on-surface font-extrabold text-xl">카테고리별 지출</h2>
+                                <div className="bg-surface-container-high px-3 py-1 rounded-full flex items-center gap-1.5">
+                                    <span className="w-2 h-2 rounded-full bg-primary"></span>
+                                    <span className="text-[10px] font-bold text-on-surface-variant tracking-wider uppercase">{currentMonth + 1}월 지출 분석</span>
+                                </div>
+                            </div>
+                            <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 shadow-sm border border-outline-variant/10 flex flex-col items-center">
+                                <div className="relative w-48 h-48 mb-8">
+                                    <svg className="w-full h-full transform" viewBox="0 0 100 100">
+                                        <circle cx="50" cy="50" fill="transparent" r="40" stroke="#efecf5" strokeWidth="12"></circle>
+                                        {categoryItems.map(([cat, val]) => {
+                                            const ratio = val / totalCategoryAmount;
+                                            const circumference = 251.327;
+                                            const dashoffset = circumference - (circumference * ratio) + 0.1;
+                                            const rotation = currentRotation;
+                                            currentRotation += (ratio * 360);
+                                            return (
+                                                <circle 
+                                                    key={cat}
+                                                    className="donut-segment" 
+                                                    cx="50" cy="50" fill="transparent" r="40" 
+                                                    stroke={CAT_COLORS[cat] || '#000'} 
+                                                    strokeDasharray={251.327} 
+                                                    strokeDashoffset={dashoffset} 
+                                                    strokeWidth="12" 
+                                                    style={{transformOrigin: 'center', transform: `rotate(${rotation}deg)`}}>
+                                                </circle>
+                                            );
+                                        })}
+                                    </svg>
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                                        <span className="text-on-surface-variant text-[10px] font-bold uppercase tracking-widest">총액</span>
+                                        <span className="text-on-surface font-extrabold text-2xl">₩{(currentStats.total / 1000).toFixed(0)}k</span>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-x-8 gap-y-4 w-full">
+                                    {categoryItems.map(([cat, val]) => (
+                                        <div key={cat} className="flex items-center gap-2">
+                                            <div className="w-3 h-3 rounded-full" style={{backgroundColor: CAT_COLORS[cat] || '#767683'}}></div>
+                                            <div className="flex flex-col">
+                                                <span className="text-[11px] font-medium text-on-surface-variant">{cat}</span>
+                                                <span className="text-sm font-bold">₩{formatCurrency(val)}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {categoryItems.length === 0 && (
+                                        <div className="col-span-2 text-center text-sm text-on-surface-variant py-4">이번 달 지출이 없습니다.</div>
+                                    )}
+                                </div>
+                            </div>
+                        </section>
+
+                        <section className="mb-12 pt-8 border-t border-outline-variant/10">
+                            <span className="font-label text-xs uppercase tracking-[0.2em] text-on-surface-variant font-semibold">남은 할부 목록</span>
+                            <div className="flex items-baseline gap-2 mt-2">
+                                <span className="font-headline text-4xl font-extrabold text-primary">₩{formatCurrency(activeTotalBalance)}</span>
+                            </div>
+                            <p className="font-label text-sm text-on-surface-variant mt-1">총 {activeInstallments.length}건의 활성 할부 항목이 있습니다</p>
+                        </section>
+                        <div className="flex items-center justify-between mb-8 p-1 bg-surface-container-low rounded-full">
+                            <button onClick={() => setSortMode('balance')} className={`flex-1 py-2 px-4 rounded-full text-xs transition-all flex items-center justify-center gap-2 ${sortMode === 'balance' ? 'bg-surface-container-lowest shadow-sm text-primary font-bold' : 'text-on-surface-variant font-medium'}`}>
+                                {sortMode === 'balance' && <span className="material-symbols-outlined text-sm">sort</span>}
+                                잔액 순
+                            </button>
+                            <button onClick={() => setSortMode('endDate')} className={`flex-1 py-2 px-4 rounded-full text-xs transition-all flex items-center justify-center gap-2 ${sortMode === 'endDate' ? 'bg-surface-container-lowest shadow-sm text-primary font-bold' : 'text-on-surface-variant font-medium'}`}>
+                                {sortMode === 'endDate' && <span className="material-symbols-outlined text-sm">sort</span>}
+                                종료일 순
+                            </button>
+                        </div>
+                        <div className="space-y-6">
+                            {activeInstallments.map(item => {
+                                const expDate = new Date(item.date);
+                                const isWarning = item.progressPercent > 80;
+                                return (
+                                    <div key={item.id} className={`bg-surface-container-lowest p-6 rounded-xl border ${isWarning ? 'border-tertiary-container/30' : 'border-outline-variant/10'}`}>
+                                        <div className="flex justify-between items-start mb-4">
+                                            <div>
+                                                <h3 className="font-headline font-bold text-lg text-on-surface">{item.title}</h3>
+                                                <div className="flex items-center gap-2 mt-0.5">
+                                                    <span className="px-1.5 py-0.5 bg-surface-container rounded text-[9px] font-bold text-primary">{item.card}</span>
+                                                    <p className="font-label text-xs text-on-surface-variant">{item.category} • {item.endDateStr} 종료</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <span className="font-headline font-bold text-primary block">₩{formatCurrency(Math.max(0, item.remainingBalance))}</span>
+                                                <span className="font-label text-[10px] text-on-surface-variant uppercase tracking-widest">월 ₩{formatCurrency(item.monthlyAmount)}</span>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <div className="flex justify-between items-end">
+                                                <span className={`font-label text-[10px] font-bold ${isWarning ? 'text-on-tertiary-container' : 'text-secondary'} uppercase tracking-tighter`}>{item.months}개월 중 {item.paidMonths}회차 납부</span>
+                                                <span className="font-label text-[10px] text-on-surface-variant font-medium">{Math.floor(item.progressPercent)}% 완료</span>
+                                            </div>
+                                            <div className="w-full h-3 bg-surface-container-highest rounded-full overflow-hidden">
+                                                <div className={`h-full ${isWarning ? 'bg-tertiary-container' : 'bg-secondary-fixed'} rounded-full transition-all duration-1000`} style={{width: `${item.progressPercent}%`}}></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                            {activeInstallments.length === 0 && (
+                                <div className="text-center text-on-surface-variant py-10">활성 할부 항목이 없습니다.</div>
+                            )}
+                        </div>
+                    </main>
+                    <BottomNavBar />
+                </div>
+            )
+        };
+
+        // Screen 1: Monthly Timeline
+        const TimelinePage = () => {
+            const { expenses, updateExpense, deleteExpense, cards, categories } = useContext(DataContext);
+            const [editingExpId, setEditingExpId] = useState(null);
+            const [editForm, setEditForm] = useState(null);
+
+            const handleEditClick = (item) => {
+                setEditingExpId(item.id);
+                setEditForm({...item});
+            };
+
+            const handleEditSave = () => {
+                updateExpense(editForm.id, editForm);
+                setEditingExpId(null);
+                setEditForm(null);
+            };
+
+            const now = new Date();
+            const currentYear = now.getFullYear();
+            const currentMonth = now.getMonth();
+            const currentMonths = currentYear * 12 + currentMonth;
+
+            const monthlyItems = expenses.flatMap(exp => {
+                const expDate = new Date(exp.date);
+                const startMonths = expDate.getFullYear() * 12 + expDate.getMonth();
+
+                if (!exp.isInstallment && startMonths === currentMonths) {
+                    return [{...exp, currentTerm: 0}];
+                } else if (exp.isInstallment && currentMonths >= startMonths && currentMonths < startMonths + exp.months) {
+                    return [{...exp, currentTerm: currentMonths - startMonths + 1}];
+                }
+                return [];
+            }).sort((a,b) => new Date(b.date) - new Date(a.date));
+
+            const monthlyTotal = monthlyItems.reduce((acc, curr) => acc + (curr.isInstallment ? curr.monthlyAmount : curr.amount), 0);
+
+            const trendData = Array.from({length: 6}, (_, i) => {
+                const targetDate = new Date(currentYear, currentMonth - 5 + i, 1);
+                const tYear = targetDate.getFullYear();
+                const tMonth = targetDate.getMonth();
+                const tMonths = tYear * 12 + tMonth;
+
+                let sum = 0;
+                expenses.forEach(exp => {
+                    const expDate = new Date(exp.date);
+                    const startMonths = expDate.getFullYear() * 12 + expDate.getMonth();
+                    if (!exp.isInstallment && startMonths === tMonths) {
+                        sum += exp.amount;
+                    } else if (exp.isInstallment && tMonths >= startMonths && tMonths < startMonths + exp.months) {
+                        sum += exp.monthlyAmount;
+                    }
+                });
+                return sum;
+            });
+            const maxTrend = Math.max(...trendData, 1);
+            const trendPercentages = trendData.map(v => v === 0 ? 0 : (v / maxTrend) * 100);
+            const avgTrend = trendData.reduce((a,b)=>a+b,0) / 6;
+
+            return (
+                <div className="min-h-screen pb-32 bg-surface">
+                    <TopAppBar title={`${currentYear}년 ${currentMonth + 1}월`} />
+                    <main className="flex-grow pt-24 px-6 max-w-md mx-auto w-full">
+                        <section className="mb-8">
+                            <p className="text-on-surface-variant font-semibold text-xs uppercase tracking-[0.2em] mb-2">총 월간 지출</p>
+                            <div className="flex items-start">
+                                <span className="font-bold text-2xl mt-1 mr-1 text-primary">₩</span>
+                                <span className="font-extrabold text-6xl tracking-tighter text-primary">{formatCurrency(monthlyTotal)}</span>
+                            </div>
+                        </section>
+                        <section className="mb-12">
+                            <div className="flex items-center justify-between mb-6">
+                                <h3 className="text-on-surface-variant font-bold text-[10px] uppercase tracking-[0.2em]">최근 6개월 소비 트렌드</h3>
+                                <span className="text-[10px] text-on-surface-variant font-medium">평균 ₩{formatCurrency(Math.floor(avgTrend))}/월</span>
+                            </div>
+                            <div className="h-32 flex items-end justify-between gap-3 px-2">
+                                {trendPercentages.map((h, i) => {
+                                    const m = new Date(currentYear, currentMonth - 5 + i, 1).getMonth() + 1;
+                                    return (
+                                        <div key={i} className="flex-1 flex flex-col items-center gap-2 group">
+                                            <div className="w-full bg-surface-container-highest rounded-full h-28 relative overflow-hidden">
+                                                <div className={`absolute bottom-0 w-full ${i === 5 ? 'bg-secondary-fixed' : 'bg-primary'} rounded-t-full transition-all duration-1000`} style={{height: `${h}%`}}></div>
+                                            </div>
+                                            <span className={`text-[9px] font-bold ${i === 5 ? 'text-primary' : 'text-on-surface-variant'} uppercase tracking-tighter`}>{m}월</span>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        </section>
+                        <div className="space-y-10">
+                            <div>
+                                <h3 className="text-on-surface-variant font-bold text-[10px] uppercase tracking-[0.2em] mb-6">이번 달 결제 내역</h3>
+                                <div className="space-y-6">
+                                    {monthlyItems.map(item => (
+                                        <div key={item.id}>
+                                            {editingExpId === item.id ? (
+                                                <div className="bg-surface-container-low p-4 rounded-xl border border-primary/20 space-y-3 shadow-sm animate-in fade-in duration-200">
+                                                    <input value={editForm.title} onChange={e => setEditForm({...editForm, title: e.target.value})} className="w-full px-3 py-2 text-sm rounded-lg bg-surface-container-lowest border-none font-semibold focus:ring-2 focus:ring-primary/20" placeholder="항목명"/>
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <div className="relative">
+                                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant font-bold text-xs">₩</span>
+                                                            <input type="number" value={editForm.amount} onChange={e => {
+                                                                const val = parseInt(e.target.value) || 0;
+                                                                setEditForm({...editForm, amount: val, monthlyAmount: editForm.isInstallment ? Math.floor(val / editForm.months) : val})
+                                                            }} className="w-full pl-7 pr-3 py-2 text-sm rounded-lg bg-surface-container-lowest border-none font-bold focus:ring-2 focus:ring-primary/20" />
+                                                        </div>
+                                                        <input type="date" value={editForm.date} onChange={e => setEditForm({...editForm, date: e.target.value})} className="w-full px-3 py-2 text-[11px] sm:text-sm rounded-lg bg-surface-container-lowest border-none focus:ring-2 focus:ring-primary/20"/>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <select value={editForm.card} onChange={e => setEditForm({...editForm, card: e.target.value})} className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg bg-surface-container-lowest border-none focus:ring-2 focus:ring-primary/20">
+                                                            {cards.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                                        </select>
+                                                        <select value={editForm.category} onChange={e => setEditForm({...editForm, category: e.target.value})} className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg bg-surface-container-lowest border-none focus:ring-2 focus:ring-primary/20">
+                                                            {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                                                        </select>
+                                                    </div>
+                                                    <div className="flex justify-between items-center pt-2 border-t border-outline-variant/10">
+                                                        <button onClick={() => { deleteExpense(item.id); setEditingExpId(null); }} className="text-red-500 text-xs font-bold px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 rounded-lg transition-colors flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">delete</span>삭제</button>
+                                                        <div className="flex gap-2">
+                                                            <button onClick={() => setEditingExpId(null)} className="text-on-surface-variant text-xs font-bold px-3 py-1.5 bg-surface-container hover:bg-surface-container-high rounded-lg transition-colors">취소</button>
+                                                            <button onClick={handleEditSave} className="text-on-primary text-xs font-bold px-4 py-1.5 bg-primary hover:opacity-90 rounded-lg transition-colors">저장</button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center justify-between cursor-pointer group p-2 -mx-2 rounded-xl hover:bg-surface-container-high transition-colors" onClick={() => handleEditClick(item)}>
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-12 h-12 rounded-full bg-surface-container-highest flex items-center justify-center">
+                                                            <span className="material-symbols-outlined text-primary">
+                                                                {item.category === '식비' ? 'restaurant' : item.category === '전자제품' ? 'laptop_mac' : item.category === '가구' ? 'chair' : 'receipt_long'}
+                                                            </span>
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-semibold text-on-surface text-sm">{item.title}</p>
+                                                            <div className="flex items-center gap-2 mt-0.5">
+                                                                {item.isInstallment && item.currentTerm > 0 ? (
+                                                                    <span className="px-2 py-0.5 bg-secondary-container/30 text-secondary text-[9px] font-bold rounded-full uppercase tracking-tighter">할부 {item.currentTerm}/{item.months}회차</span>
+                                                                ) : (
+                                                                    <span className="text-on-surface-variant text-[11px]">{item.category}</span>
+                                                                )}
+                                                                <span className="text-[10px] text-on-surface-variant font-medium">• {item.card}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="font-bold text-primary text-base">₩{formatCurrency(item.isInstallment ? item.monthlyAmount : item.amount)}</p>
+                                                        <span className="material-symbols-outlined text-outline-variant opacity-0 group-hover:opacity-100 transition-opacity text-[16px]">edit</span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                    {monthlyItems.length === 0 && (
+                                        <div className="text-center text-sm text-on-surface-variant">결제 내역이 없습니다.</div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+                    <BottomNavBar />
+                </div>
+            );
+        };
+
+        // Screen 2: Installment Archive
+        const ArchivePage = () => {
+            const { expenses, cards, setCards, categories, setCategories } = useContext(DataContext);
+            const [isAddingCard, setIsAddingCard] = useState(false);
+            const [newCardName, setNewCardName] = useState('');
+            const [newCardNickname, setNewCardNickname] = useState('');
+            const [editingCardId, setEditingCardId] = useState(null);
+            const [editCardNickname, setEditCardNickname] = useState('');
+            const [isAddingCategory, setIsAddingCategory] = useState(false);
+            const [newCategory, setNewCategory] = useState('');
+
+
+            return (
+                <div className="min-h-screen pb-32 bg-surface">
+                    <TopAppBar title="Financier" />
+                    <main className="pt-24 px-6 max-w-md mx-auto min-h-screen">
+                        <section className="mb-12">
+                            <div className="flex justify-between items-center mb-4">
+                                <h2 className="text-on-surface font-extrabold text-xl">보유 중인 카드</h2>
+                                <button onClick={() => setIsAddingCard(true)} className="text-primary font-bold text-xs bg-surface-container-high px-3 py-1 rounded-full hover:bg-surface-container-highest transition-colors">+ 추가</button>
+                            </div>
+                            
+                            <div className="space-y-3">
+                                {cards.map(c => (
+                                    <div key={c.id} className="bg-surface-container-lowest p-4 rounded-xl flex justify-between items-center border border-outline-variant/10 shadow-sm">
+                                        <div className="flex items-center gap-3">
+                                            <div className="bg-primary/10 p-2 rounded-full">
+                                                <span className="material-symbols-outlined text-primary text-sm block">credit_card</span>
+                                            </div>
+                                            {editingCardId === c.id ? (
+                                                <div className="flex flex-col gap-1">
+                                                    <span className="font-semibold text-sm text-on-surface">{c.name}</span>
+                                                    <input 
+                                                        className="bg-surface-container text-xs px-2 py-1 rounded border-none focus:ring-2 focus:ring-primary/30 w-full max-w-[120px]"
+                                                        value={editCardNickname}
+                                                        placeholder="닉네임 (예: 생활비)"
+                                                        onChange={(e) => setEditCardNickname(e.target.value)}
+                                                        autoFocus
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') {
+                                                                setCards(cards.map(card => card.id === c.id ? {...card, nickname: editCardNickname} : card));
+                                                                setEditingCardId(null);
+                                                            }
+                                                        }}
+                                                    />
+                                                </div>
+                                            ) : (
+                                                <div className="flex flex-col">
+                                                    <span className="font-semibold text-sm text-on-surface">{c.name}</span>
+                                                    {c.nickname && <span className="text-[10px] text-on-surface-variant bg-surface-container-high px-1.5 py-0.5 rounded w-fit mt-0.5 font-bold">{c.nickname}</span>}
+                                                </div>
+                                            )}
+                                        </div>
+                                        {editingCardId === c.id ? (
+                                            <div className="flex gap-2">
+                                                <button onClick={() => {
+                                                    setCards(cards.map(card => card.id === c.id ? {...card, nickname: editCardNickname} : card));
+                                                    setEditingCardId(null);
+                                                }} className="text-primary font-bold text-xs bg-primary/10 px-2 py-1.5 rounded hover:bg-primary/20">저장</button>
+                                                <button onClick={() => setEditingCardId(null)} className="text-on-surface-variant font-bold text-xs bg-surface-container px-2 py-1.5 rounded hover:bg-surface-container-high">취소</button>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center gap-1">
+                                                <button onClick={() => { setEditingCardId(c.id); setEditCardNickname(c.nickname || ''); }} className="material-symbols-outlined text-on-surface-variant text-[16px] p-1.5 rounded-full hover:bg-surface-container hover:text-primary transition-all">edit</button>
+                                                <button onClick={() => { setCards(cards.filter(card => card.id !== c.id)) }} className="material-symbols-outlined text-on-surface-variant text-[16px] p-1.5 rounded-full hover:bg-surface-container hover:text-red-500 transition-all">delete</button>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                                
+                                {isAddingCard && (
+                                    <div className="bg-surface-container-lowest p-4 rounded-xl border border-primary/20 shadow-sm space-y-3">
+                                        <div className="space-y-2">
+                                            <input value={newCardName} onChange={e => setNewCardName(e.target.value)} placeholder="카드명 (예: 삼성 탭탭)" className="w-full text-sm px-3 py-2 rounded-lg bg-surface-container border-none focus:ring-2 focus:ring-primary/20" autoFocus />
+                                            <input value={newCardNickname} onChange={e => setNewCardNickname(e.target.value)} placeholder="닉네임 (선택 사항)" className="w-full text-sm px-3 py-2 rounded-lg bg-surface-container border-none focus:ring-2 focus:ring-primary/20" onKeyDown={e => { if(e.key === 'Enter') { if (!newCardName) return; setCards([...cards, { id: 'c'+Date.now(), name: newCardName, nickname: newCardNickname }]); setNewCardName(''); setNewCardNickname(''); setIsAddingCard(false); } }} />
+                                        </div>
+                                        <div className="flex gap-2 justify-end pt-1">
+                                            <button onClick={() => setIsAddingCard(false)} className="px-3 py-1.5 rounded-lg text-xs font-bold text-on-surface-variant bg-surface-container hover:bg-surface-container-high transition-colors">취소</button>
+                                            <button onClick={() => {
+                                                if (!newCardName) return;
+                                                setCards([...cards, { id: 'c'+Date.now(), name: newCardName, nickname: newCardNickname }]);
+                                                setNewCardName(''); setNewCardNickname(''); setIsAddingCard(false);
+                                            }} className="px-3 py-1.5 rounded-lg text-xs font-bold text-on-primary bg-primary hover:opacity-90 transition-colors">등록하기</button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </section>
+
+                        <section className="mb-12 pt-8 border-t border-outline-variant/10">
+                            <div className="flex justify-between items-center mb-4">
+                                <h2 className="text-on-surface font-extrabold text-xl">카테고리 관리</h2>
+                                <button onClick={() => setIsAddingCategory(true)} className="text-primary font-bold text-xs bg-surface-container-high px-3 py-1 rounded-full hover:bg-surface-container-highest transition-colors">+ 추가</button>
+                            </div>
+                            
+                            <div className="flex flex-wrap gap-2">
+                                {categories.map((cat, idx) => (
+                                    <div key={idx} className="flex items-center gap-1 bg-surface-container-lowest px-3 py-1.5 rounded-full border border-outline-variant/20 shadow-sm transition-all hover:bg-surface-container-high">
+                                        <span className="text-sm text-on-surface font-semibold">{cat}</span>
+                                        <button onClick={() => setCategories(categories.filter(c => c !== cat))} className="material-symbols-outlined text-on-surface-variant text-[16px] hover:text-red-500 rounded-full transition-colors ml-1 leading-none p-0.5">close</button>
+                                    </div>
+                                ))}
+                            </div>
+                            {isAddingCategory && (
+                                <div className="mt-4 bg-surface-container-lowest p-4 rounded-xl border border-primary/20 shadow-sm space-y-3 animate-in fade-in duration-200">
+                                    <input value={newCategory} onChange={e => setNewCategory(e.target.value)} placeholder="새 카테고리명 (예: 의료비)" className="w-full text-sm px-3 py-2 rounded-lg bg-surface-container border-none focus:ring-2 focus:ring-primary/20" autoFocus onKeyDown={e => { if(e.key === 'Enter') { if(!newCategory.trim() || categories.includes(newCategory.trim())) return; setCategories([...categories, newCategory.trim()]); setNewCategory(''); setIsAddingCategory(false); } }} />
+                                    <div className="flex gap-2 justify-end pt-1">
+                                        <button onClick={() => setIsAddingCategory(false)} className="px-3 py-1.5 rounded-lg text-xs font-bold text-on-surface-variant bg-surface-container hover:bg-surface-container-high transition-colors">취소</button>
+                                        <button onClick={() => { if(!newCategory.trim() || categories.includes(newCategory.trim())) return; setCategories([...categories, newCategory.trim()]); setNewCategory(''); setIsAddingCategory(false); }} className="px-3 py-1.5 rounded-lg text-xs font-bold text-on-primary bg-primary hover:opacity-90 transition-colors">등록하기</button>
+                                    </div>
+                                </div>
+                            )}
+                        </section>
+
+
+                    </main>
+                    <BottomNavBar />
+                </div>
+            );
+        };
+
+        // Screen 4: Add Expense
+        const AddExpensePage = () => {
+            const { addExpense, cards, categories } = useContext(DataContext);
+            const [amountStr, setAmountStr] = useState("");
+            const [title, setTitle] = useState("");
+            const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+            const [card, setCard] = useState(cards.length > 0 ? cards[0].name : "");
+            const [category, setCategory] = useState(categories.length > 0 ? categories[0] : "식비");
+            const [isInstallment, setIsInstallment] = useState(false);
+            const [months, setMonths] = useState(3);
+            const navigate = useNavigate();
+
+            const handleDigit = (digit) => {
+                if (digit === "00" && (!amountStr || amountStr === "0")) return;
+                setAmountStr(prev => {
+                    let raw = prev.replace(/,/g, '');
+                    if (raw === "0") raw = "";
+                    const nextRaw = raw + digit;
+                    if (nextRaw.length > 10) return prev;
+                    return formatCurrency(parseInt(nextRaw));
+                });
+            };
+
+            const handleBackspace = () => {
+                setAmountStr(prev => {
+                    let raw = prev.replace(/,/g, '');
+                    if (raw.length <= 1) return "";
+                    return formatCurrency(parseInt(raw.slice(0, -1)));
+                });
+            };
+
+            const handleSubmit = () => {
+                const amount = parseInt(amountStr.replace(/,/g, '')) || 0;
+                if (amount <= 0 || !title) return; // Basic validation
+                
+                addExpense({
+                    id: Date.now().toString(),
+                    title,
+                    amount,
+                    date,
+                    card,
+                    category,
+                    isInstallment,
+                    months: isInstallment ? parseInt(months) : 1,
+                    monthlyAmount: isInstallment ? Math.floor(amount / parseInt(months)) : amount
+                });
+                navigate('/');
+            };
+
+            const rawAmount = parseInt(amountStr.replace(/,/g, '')) || 0;
+            const expectedMonthly = isInstallment ? Math.floor(rawAmount / months) : rawAmount;
+
+            return (
+                <div className="min-h-screen pb-32 bg-surface">
+                    <TopAppBar title="지출 관리" showBack={true} />
+                    <main className="pt-24 px-6 max-w-md mx-auto space-y-8">
+                        <section className="space-y-6">
+                            <div className="text-center">
+                                <p className="text-on-surface-variant font-semibold text-xs mb-1">지출 금액</p>
+                                <div className="flex items-baseline justify-center gap-1">
+                                    <span className="text-primary font-bold text-2xl">₩</span>
+                                    <span className="text-primary font-extrabold text-5xl tracking-tight">{amountStr || "0"}</span>
+                                </div>
+                            </div>
+                            <div className="bg-surface-container rounded-3xl p-5 space-y-4">
+                                <div className="space-y-1">
+                                    <label className="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold px-1">항목명</label>
+                                    <input 
+                                        className="w-full bg-surface-container-lowest border-none rounded-2xl p-4 font-semibold text-on-surface focus:ring-2 focus:ring-primary/20" 
+                                        placeholder="맥북 프로 14'" 
+                                        type="text"
+                                        value={title}
+                                        onChange={(e) => setTitle(e.target.value)}
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold px-1">결제일</label>
+                                        <div className="relative">
+                                            <input 
+                                                className="w-full bg-surface-container-lowest border-none rounded-2xl p-4 font-semibold text-on-surface text-sm" 
+                                                type="date" 
+                                                value={date}
+                                                onChange={(e) => setDate(e.target.value)}
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold px-1">결제 카드</label>
+                                        <div className="relative">
+                                            <select 
+                                                className="w-full bg-surface-container-lowest border-none rounded-2xl p-4 font-semibold text-on-surface text-sm appearance-none pr-8"
+                                                value={card}
+                                                onChange={(e) => setCard(e.target.value)}
+                                            >
+                                                {cards.map(c => (
+                                                    <option key={c.id} value={c.name}>{c.nickname ? `${c.name} (${c.nickname})` : c.name}</option>
+                                                ))}
+                                            </select>
+                                            <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-base pointer-events-none">expand_more</span>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1 col-span-2">
+                                        <label className="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold px-1">카테고리</label>
+                                        <div className="relative">
+                                            <select 
+                                                className="w-full bg-surface-container-lowest border-none rounded-2xl p-4 font-semibold text-on-surface text-sm appearance-none pr-8"
+                                                value={category}
+                                                onChange={(e) => setCategory(e.target.value)}
+                                            >
+                                                {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                                            </select>
+                                            <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-base pointer-events-none">expand_more</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                        <section className="bg-surface-container-low rounded-full p-1.5 flex gap-1">
+                            <button onClick={() => setIsInstallment(false)} className={`flex-1 py-3 px-4 rounded-full text-sm font-bold transition-all ${!isInstallment ? 'bg-surface-container-lowest text-primary shadow-sm' : 'text-on-surface-variant'}`}>
+                                일시불
+                            </button>
+                            <button onClick={() => setIsInstallment(true)} className={`flex-1 py-3 px-4 rounded-full text-sm font-bold transition-all ${isInstallment ? 'bg-surface-container-lowest text-primary shadow-sm' : 'text-on-surface-variant'}`}>
+                                할부
+                            </button>
+                        </section>
+                        {isInstallment && (
+                            <section className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-300">
+                                <div className="bg-primary text-on-primary rounded-3xl p-6 relative overflow-hidden shadow-lg shadow-primary/20">
+                                    <div className="relative z-10 flex justify-between items-center">
+                                        <div>
+                                            <p className="text-[10px] uppercase tracking-widest text-on-primary/60 font-bold mb-1">월 예상 지출</p>
+                                            <h3 className="font-bold text-2xl">₩ {formatCurrency(expectedMonthly)}</h3>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-[10px] uppercase tracking-widest text-on-primary/60 font-bold mb-1">할부 기간</p>
+                                            <div className="flex items-center justify-end gap-1">
+                                                <select 
+                                                    className="bg-transparent text-2xl font-bold appearance-none text-right focus:outline-none"
+                                                    value={months}
+                                                    onChange={(e) => setMonths(Number(e.target.value))}
+                                                >
+                                                    {[2,3,4,5,6,10,12,24].map(m => <option key={m} value={m} className="text-black">{m}</option>)}
+                                                </select>
+                                                <span className="text-xs font-semibold opacity-70">개월</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+                        )}
+                        <section className="pt-4">
+                            <div className="grid grid-cols-3 gap-0.5 bg-outline-variant/20 rounded-3xl overflow-hidden">
+                                {[1,2,3,4,5,6,7,8,9, "00", 0].map(n => (
+                                    <button key={n} onClick={() => handleDigit(n.toString())} className="aspect-[4/3] bg-surface-container-lowest active:bg-surface-container-high text-2xl font-bold transition-colors">{n}</button>
+                                ))}
+                                <button onClick={handleBackspace} className="aspect-[4/3] bg-surface-container-lowest active:bg-surface-container-high flex items-center justify-center">
+                                    <span className="material-symbols-outlined text-on-surface-variant">backspace</span>
+                                </button>
+                            </div>
+                        </section>
+                        <section className="pb-12">
+                            <button 
+                                onClick={handleSubmit} 
+                                disabled={!title || rawAmount <= 0}
+                                className={`w-full py-5 rounded-full font-bold text-lg shadow-xl shadow-primary/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 ${(!title || rawAmount <= 0) ? 'bg-surface-variant text-on-surface-variant' : 'bg-primary text-on-primary'}`}
+                            >
+                                <span>지출 등록하기</span>
+                                <span className="material-symbols-outlined text-[20px]">add_circle</span>
+                            </button>
+                        </section>
+                    </main>
+                    <BottomNavBar />
+                </div>
+            );
+        };
+
+        const App = () => {
+            return (
+                <DataProvider>
+                    <MemoryRouter>
+                        <Routes>
+                            <Route path="/" element={<DashboardPage />} />
+                            <Route path="/timeline" element={<TimelinePage />} />
+                            <Route path="/archive" element={<ArchivePage />} />
+                            <Route path="/add-expense" element={<AddExpensePage />} />
+                        </Routes>
+                    </MemoryRouter>
+                </DataProvider>
+            );
+        };
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js').then(registration => {
+                    console.log('SW registered successfully');
+                }).catch(error => {
+                    console.log('SW registration failed:', error);
+                });
+            });
+        }
+    </script>
+</body>
+</html>
