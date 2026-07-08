@@ -132,12 +132,12 @@
             // Auth State Change listener
             useEffect(() => {
                 supabaseClient.auth.getSession().then(({ data: { session } }) => {
-                    setUser(session?.user ?? null);
+                    setUser(session && session.user ? session.user : null);
                     setIsLoading(false);
                 });
 
                 const { data: { subscription } } = supabaseClient.auth.onAuthStateChange((_event, session) => {
-                    setUser(session?.user ?? null);
+                    setUser(session && session.user ? session.user : null);
                 });
 
                 return () => subscription.unsubscribe();
@@ -713,10 +713,10 @@
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-3">
                                         <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary text-sm">
-                                            {user.user_metadata?.name?.charAt(0) || user.email?.charAt(0) || 'U'}
+                                            {(user.user_metadata && user.user_metadata.name) ? user.user_metadata.name.charAt(0) : (user.email ? user.email.charAt(0) : 'U')}
                                         </div>
                                         <div>
-                                            <p className="font-bold text-sm text-on-surface">{user.user_metadata?.name || user.email || '사용자'}</p>
+                                            <p className="font-bold text-sm text-on-surface">{(user.user_metadata && user.user_metadata.name) ? user.user_metadata.name : (user.email || '사용자')}</p>
                                             <p className="text-[10px] text-green-600 dark:text-green-400 font-bold flex items-center gap-1 mt-0.5">
                                                 <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
                                                 클라우드 동기화 중
