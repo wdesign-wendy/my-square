@@ -133,6 +133,59 @@
                 return saved ? JSON.parse(saved) : defaultCategories;
             });
 
+            // New states for Assets & Budget Diary
+            const defaultAssets = [
+                { id: 'a1', name: '토스 키워봐요 적금', amount: 5200000, memo: '260801 만기' },
+                { id: 'a2', name: '토스 굴비 적금', amount: 900000, memo: '260825 만기' },
+                { id: 'a3', name: '토스 모으기통장', amount: 1300000, memo: '' },
+                { id: 'a4', name: '국민 주택청약', amount: 3600000, memo: '240111 가입(26.07 기준 31회차 납입)' },
+                { id: 'a5', name: '전세 보증금', amount: 5450000, memo: '' },
+                { id: 'a6', name: '아버님 용돈', amount: 500000, memo: '' },
+            ];
+
+            const defaultSavingsGoal = {
+                targetAmount: 19000000,
+                targetDate: '2027-07-01',
+                memo: '매달 20만원 저축'
+            };
+
+            const defaultBudgetSettings = {
+                monthlyLimit: 600000,
+                fixedCosts: 850000,
+                fixedCostsMemo: '38(집세)+20(반차)+10(보험,교통)... = 85만원'
+            };
+
+            const defaultBudgetLogs = [
+                { id: 'b1', date: '2026-07-13', title: '생활비 지출', amount: 400450 },
+                { id: 'b2', date: '2026-07-14', title: '양쯔깐루', amount: 10900 },
+                { id: 'b3', date: '2026-07-14', title: '선풍기택배', amount: 3400 },
+                { id: 'b4', date: '2026-07-14', title: '아이폰할부', amount: 80000 },
+                { id: 'b5', date: '2026-07-15', title: '애플', amount: 1100 },
+                { id: 'b6', date: '2026-07-15', title: '속눈썹예약', amount: 20000 },
+                { id: 'b7', date: '2026-07-15', title: '삼성실비', amount: 18440 },
+                { id: 'b8', date: '2026-07-16', title: '컴포즈커피', amount: 2900 }
+            ];
+
+            const [assets, setAssets] = useState(() => {
+                const saved = localStorage.getItem('financier_assets');
+                return saved ? JSON.parse(saved) : defaultAssets;
+            });
+
+            const [savingsGoal, setSavingsGoal] = useState(() => {
+                const saved = localStorage.getItem('financier_savings_goal');
+                return saved ? JSON.parse(saved) : defaultSavingsGoal;
+            });
+
+            const [budgetSettings, setBudgetSettings] = useState(() => {
+                const saved = localStorage.getItem('financier_budget_settings');
+                return saved ? JSON.parse(saved) : defaultBudgetSettings;
+            });
+
+            const [budgetLogs, setBudgetLogs] = useState(() => {
+                const saved = localStorage.getItem('financier_budget_logs');
+                return saved ? JSON.parse(saved) : defaultBudgetLogs;
+            });
+
             const [user, setUser] = useState(null);
             const [hasSynced, setHasSynced] = useState(false);
             const [isLoading, setIsLoading] = useState(true);
@@ -177,13 +230,17 @@
                         if (data.data.expenses) setExpenses(data.data.expenses);
                         if (data.data.cards) setCards(data.data.cards);
                         if (data.data.categories) setCategories(data.data.categories);
+                        if (data.data.assets) setAssets(data.data.assets);
+                        if (data.data.savingsGoal) setSavingsGoal(data.data.savingsGoal);
+                        if (data.data.budgetSettings) setBudgetSettings(data.data.budgetSettings);
+                        if (data.data.budgetLogs) setBudgetLogs(data.data.budgetLogs);
                     } else {
                         // First-time login: sync existing local storage data to cloud
                         await supabaseClient
                             .from('user_data')
                             .upsert({
                                 user_id: user.id,
-                                data: { expenses, cards, categories },
+                                data: { expenses, cards, categories, assets, savingsGoal, budgetSettings, budgetLogs },
                                 updated_at: new Date().toISOString()
                             });
                     }
@@ -200,6 +257,10 @@
                     localStorage.setItem('financier_expenses', JSON.stringify(expenses));
                     localStorage.setItem('financier_cards', JSON.stringify(cards));
                     localStorage.setItem('financier_categories', JSON.stringify(categories));
+                    localStorage.setItem('financier_assets', JSON.stringify(assets));
+                    localStorage.setItem('financier_savings_goal', JSON.stringify(savingsGoal));
+                    localStorage.setItem('financier_budget_settings', JSON.stringify(budgetSettings));
+                    localStorage.setItem('financier_budget_logs', JSON.stringify(budgetLogs));
                     return;
                 }
 
@@ -210,14 +271,14 @@
                         .from('user_data')
                         .upsert({
                             user_id: user.id,
-                            data: { expenses, cards, categories },
+                            data: { expenses, cards, categories, assets, savingsGoal, budgetSettings, budgetLogs },
                             updated_at: new Date().toISOString()
                         });
                     if (error) console.error('Failed to sync to cloud:', error);
                 }, 1000);
 
                 return () => clearTimeout(delayDebounce);
-            }, [expenses, cards, categories, user, hasSynced]);
+            }, [expenses, cards, categories, assets, savingsGoal, budgetSettings, budgetLogs, user, hasSynced]);
 
             const addExpense = (exp) => setExpenses(prev => [...prev, exp]);
             const updateExpense = (id, newExp) => setExpenses(prev => prev.map(e => e.id === id ? newExp : e));
@@ -234,19 +295,30 @@
             };
 
             const handleLogout = async () => {
-                await supabaseClient.auth.signOut();
+                await supabaseClient.signOut || await supabaseClient.auth.signOut();
                 const localExpenses = localStorage.getItem('financier_expenses');
                 setExpenses(localExpenses ? JSON.parse(localExpenses) : defaultExpenses);
                 const localCards = localStorage.getItem('financier_cards');
                 setCards(localCards ? JSON.parse(localCards) : defaultCards);
                 const localCategories = localStorage.getItem('financier_categories');
                 setCategories(localCategories ? JSON.parse(localCategories) : defaultCategories);
+                
+                const localAssets = localStorage.getItem('financier_assets');
+                setAssets(localAssets ? JSON.parse(localAssets) : defaultAssets);
+                const localGoal = localStorage.getItem('financier_savings_goal');
+                setSavingsGoal(localGoal ? JSON.parse(localGoal) : defaultSavingsGoal);
+                const localSettings = localStorage.getItem('financier_budget_settings');
+                setBudgetSettings(localSettings ? JSON.parse(localSettings) : defaultBudgetSettings);
+                const localLogs = localStorage.getItem('financier_budget_logs');
+                setBudgetLogs(localLogs ? JSON.parse(localLogs) : defaultBudgetLogs);
             };
 
             return (
                 <DataContext.Provider value={{ 
                     expenses, addExpense, updateExpense, deleteExpense, 
                     cards, setCards, categories, setCategories, 
+                    assets, setAssets, savingsGoal, setSavingsGoal, 
+                    budgetSettings, setBudgetSettings, budgetLogs, setBudgetLogs,
                     user, handleLogout, handleKakaoLogin, isLoading 
                 }}>
                     {children}
@@ -283,13 +355,13 @@
             return (
                 <nav className="fixed bottom-6 left-6 right-6 z-50 rounded-[2rem] bg-surface/90 backdrop-blur-xl border border-outline shadow-lg max-w-sm mx-auto">
                     <div className="flex justify-around items-center px-2 py-3 h-20">
-                        {['/', '/timeline', '/archive'].map((path) => {
+                        {['/', '/timeline', '/asset', '/archive'].map((path) => {
                             const isActive = location.pathname === path;
-                            const label = path === '/' ? '대시보드' : path === '/timeline' ? '타임라인' : '아카이브';
-                            const icon = path === '/' ? 'dashboard' : path === '/timeline' ? 'event_repeat' : 'inventory_2';
+                            const label = path === '/' ? '대시보드' : path === '/timeline' ? '타임라인' : path === '/asset' ? '자산' : '아카이브';
+                            const icon = path === '/' ? 'dashboard' : path === '/timeline' ? 'event_repeat' : path === '/asset' ? 'savings' : 'inventory_2';
                             return (
                                 <Link key={path} to={path} className="flex-1 flex flex-col items-center justify-center h-full">
-                                    <div className={`flex flex-col items-center justify-center w-20 py-2 rounded-2xl transition-all ${isActive ? 'bg-surface-container-high text-primary font-bold shadow-sm' : 'text-on-surface-variant opacity-60 hover:text-primary'}`}>
+                                    <div className={`flex flex-col items-center justify-center w-[4.5rem] py-2 rounded-2xl transition-all ${isActive ? 'bg-surface-container-high text-primary font-bold shadow-sm' : 'text-on-surface-variant opacity-60 hover:text-primary'}`}>
                                         <span className="material-symbols-outlined" style={{fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0"}}>{icon}</span>
                                         <span className="font-bold text-[9px] uppercase tracking-widest mt-1">{label}</span>
                                     </div>
@@ -716,6 +788,542 @@
             );
         };
 
+                // Screen 5: Assets and Budget Diary
+        const AssetPage = () => {
+            const { 
+                assets, setAssets, 
+                savingsGoal, setSavingsGoal, 
+                budgetSettings, setBudgetSettings, 
+                budgetLogs, setBudgetLogs 
+            } = useContext(DataContext);
+
+            const [isAddingAsset, setIsAddingAsset] = useState(false);
+            const [newAssetName, setNewAssetName] = useState('');
+            const [newAssetAmount, setNewAssetAmount] = useState('');
+            const [newAssetMemo, setNewAssetMemo] = useState('');
+            const [editingAssetId, setEditingAssetId] = useState(null);
+            const [editAssetAmount, setEditAssetAmount] = useState('');
+            const [editAssetMemo, setEditAssetMemo] = useState('');
+
+            const [isEditingGoal, setIsEditingGoal] = useState(false);
+            const [editGoalAmount, setEditGoalAmount] = useState('');
+            const [editGoalDate, setEditGoalDate] = useState('');
+            const [editGoalMemo, setEditGoalMemo] = useState('');
+
+            const [isEditingBudget, setIsEditingBudget] = useState(false);
+            const [editBudgetLimit, setEditBudgetLimit] = useState('');
+            const [editBudgetFixed, setEditBudgetFixed] = useState('');
+            const [editBudgetFixedMemo, setEditBudgetFixedMemo] = useState('');
+
+            const [newLogTitle, setNewLogTitle] = useState('');
+            const [newLogAmount, setNewLogAmount] = useState('');
+            const [newLogDate, setNewLogDate] = useState(new Date().toISOString().split('T')[0]);
+
+            // Formatting helper for currency inputs
+            const handleNumberInput = (val, setter) => {
+                const raw = val.replace(/[^0-9]/g, '');
+                setter(raw ? parseInt(raw).toLocaleString() : '');
+            };
+
+            // Calculations
+            const totalAsset = assets.reduce((acc, curr) => acc + curr.amount, 0);
+            const targetAmountVal = savingsGoal ? savingsGoal.targetAmount : 0;
+            const percent = targetAmountVal > 0 ? (totalAsset / targetAmountVal) * 100 : 0;
+            const remainingToGoal = Math.max(0, targetAmountVal - totalAsset);
+
+            const targetDateStr = savingsGoal ? savingsGoal.targetDate : '';
+            const targetDateObj = targetDateStr ? new Date(targetDateStr) : null;
+            let dDayStr = 'D-Day 설정 필요';
+            if (targetDateObj) {
+                const diffTime = targetDateObj - new Date();
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                dDayStr = diffDays > 0 ? 'D-' + diffDays : (diffDays === 0 ? 'D-Day' : '달성 완료');
+            }
+
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = today.getMonth();
+
+            const currentMonthLogs = budgetLogs.filter(log => {
+                if (!log.date) return false;
+                const logDate = new Date(log.date);
+                return logDate.getFullYear() === year && logDate.getMonth() === month;
+            });
+
+            // Sort oldest first for chronological running balance calculation
+            const sortedLogs = [...currentMonthLogs].sort((a, b) => new Date(a.date) - new Date(b.date));
+            let runningBalance = budgetSettings ? budgetSettings.monthlyLimit : 600000;
+            const logsWithBalance = sortedLogs.map(log => {
+                runningBalance -= log.amount;
+                return { ...log, balanceAfter: runningBalance };
+            });
+
+            // Reverse for latest first display
+            const displayLogs = [...logsWithBalance].reverse();
+
+            // Group by date
+            const groupedLogs = {};
+            displayLogs.forEach(log => {
+                if (!groupedLogs[log.date]) {
+                    groupedLogs[log.date] = {
+                        date: log.date,
+                        items: [],
+                        endBalance: log.balanceAfter
+                    };
+                }
+                groupedLogs[log.date].items.push(log);
+            });
+            const groupedList = Object.values(groupedLogs).sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            const totalSpent = currentMonthLogs.reduce((acc, curr) => acc + curr.amount, 0);
+            const monthlyLimitVal = budgetSettings ? budgetSettings.monthlyLimit : 600000;
+            const remainingBudget = monthlyLimitVal - totalSpent;
+
+            const lastDay = new Date(year, month + 1, 0).getDate();
+            const remainingDays = lastDay - today.getDate() + 1;
+            const dailySpendLimit = remainingDays > 0 ? Math.max(0, Math.floor(remainingBudget / remainingDays)) : 0;
+
+            const handleAddAsset = () => {
+                const amount = parseInt(newAssetAmount.replace(/,/g, '')) || 0;
+                if (!newAssetName || amount <= 0) return;
+                setAssets(prev => [...prev, {
+                    id: 'a_' + Date.now(),
+                    name: newAssetName,
+                    amount,
+                    memo: newAssetMemo
+                }]);
+                setNewAssetName('');
+                setNewAssetAmount('');
+                setNewAssetMemo('');
+                setIsAddingAsset(false);
+            };
+
+            const startEditAsset = (asset) => {
+                setEditingAssetId(asset.id);
+                setEditAssetAmount(asset.amount.toLocaleString());
+                setEditAssetMemo(asset.memo || '');
+            };
+
+            const handleSaveAssetEdit = (id) => {
+                const amount = parseInt(editAssetAmount.replace(/,/g, '')) || 0;
+                setAssets(prev => prev.map(a => a.id === id ? { ...a, amount, memo: editAssetMemo } : a));
+                setEditingAssetId(null);
+            };
+
+            const handleDeleteAsset = (id) => {
+                if (confirm('이 자산 항목을 삭제하시겠습니까?')) {
+                    setAssets(prev => prev.filter(a => a.id !== id));
+                }
+            };
+
+            const startEditGoal = () => {
+                setEditGoalAmount(targetAmountVal.toLocaleString());
+                setEditGoalDate(targetDateStr);
+                setEditGoalMemo(savingsGoal ? (savingsGoal.memo || '') : '');
+                setIsEditingGoal(true);
+            };
+
+            const handleSaveGoal = () => {
+                const amount = parseInt(editGoalAmount.replace(/,/g, '')) || 0;
+                setSavingsGoal({
+                    targetAmount: amount,
+                    targetDate: editGoalDate,
+                    memo: editGoalMemo
+                });
+                setIsEditingGoal(false);
+            };
+
+            const startEditBudget = () => {
+                setEditBudgetLimit(monthlyLimitVal.toLocaleString());
+                setEditBudgetFixed(budgetSettings && budgetSettings.fixedCosts ? budgetSettings.fixedCosts.toLocaleString() : '850000');
+                setEditBudgetFixedMemo(budgetSettings && budgetSettings.fixedCostsMemo ? budgetSettings.fixedCostsMemo : '');
+                setIsEditingBudget(true);
+            };
+
+            const handleSaveBudgetSettings = () => {
+                const limit = parseInt(editBudgetLimit.replace(/,/g, '')) || 0;
+                const fixed = parseInt(editBudgetFixed.replace(/,/g, '')) || 0;
+                setBudgetSettings({
+                    monthlyLimit: limit,
+                    fixedCosts: fixed,
+                    fixedCostsMemo: editBudgetFixedMemo
+                });
+                setIsEditingBudget(false);
+            };
+
+            const handleAddBudgetLog = () => {
+                const amount = parseInt(newLogAmount.replace(/,/g, '')) || 0;
+                if (!newLogTitle || amount <= 0) return;
+                setBudgetLogs(prev => [...prev, {
+                    id: 'b_' + Date.now(),
+                    date: newLogDate,
+                    title: newLogTitle,
+                    amount
+                }]);
+                setNewLogTitle('');
+                setNewLogAmount('');
+            };
+
+            const handleDeleteBudgetLog = (id) => {
+                if (confirm('이 지출 내역을 삭제하시겠습니까?')) {
+                    setBudgetLogs(prev => prev.filter(l => l.id !== id));
+                }
+            };
+
+            const getDayOfWeek = (dateStr) => {
+                const days = ['일', '월', '화', '수', '목', '금', '토'];
+                return days[new Date(dateStr).getDay()];
+            };
+
+            const formatDateHeader = (dateStr) => {
+                const parts = dateStr.split('-');
+                return parts[1] + '/' + parts[2] + '(' + getDayOfWeek(dateStr) + ')';
+            };
+
+            return (
+                <div className="min-h-screen pb-32 bg-surface">
+                    <TopAppBar title="자산 및 생활비" />
+                    <main className="pt-24 px-6 max-w-md mx-auto space-y-8">
+                        
+                        {/* 1. 저축 목표 카드 */}
+                        <section className="p-6 bg-surface-container-low rounded-[2rem] border border-outline-variant/20 shadow-sm relative overflow-hidden">
+                            <div className="flex justify-between items-start mb-4">
+                                <div>
+                                    <p className="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold mb-1">저축 목표 프로젝트</p>
+                                    <h2 className="text-xl font-extrabold text-on-surface">
+                                        {savingsGoal ? savingsGoal.memo : '매달 저축 목표'}
+                                    </h2>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="px-3 py-1 bg-primary text-on-primary rounded-full text-xs font-black shadow-sm shadow-primary/10">
+                                        {dDayStr}
+                                    </span>
+                                    <button onClick={isEditingGoal ? () => setIsEditingGoal(false) : startEditGoal} className="text-on-surface-variant hover:text-primary transition-colors">
+                                        <span className="material-symbols-outlined text-[18px]">settings</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {isEditingGoal ? (
+                                <div className="space-y-4 pt-2 border-t border-outline-variant/10 animate-in fade-in duration-200">
+                                    <div className="space-y-1">
+                                        <label className="text-[9px] uppercase tracking-widest text-on-surface-variant font-bold">목표명</label>
+                                        <input 
+                                            type="text" 
+                                            value={editGoalMemo} 
+                                            onChange={e => setEditGoalMemo(e.target.value)}
+                                            className="w-full bg-surface-container-lowest border-none rounded-xl p-3 text-sm font-semibold text-on-surface"
+                                            placeholder="예: 27년 7월까지 1900만원 만들기"
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] uppercase tracking-widest text-on-surface-variant font-bold">목표 금액 (₩)</label>
+                                            <input 
+                                                type="text" 
+                                                value={editGoalAmount} 
+                                                onChange={e => handleNumberInput(e.target.value, setEditGoalAmount)}
+                                                className="w-full bg-surface-container-lowest border-none rounded-xl p-3 text-sm font-semibold text-on-surface"
+                                                placeholder="19,000,000"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] uppercase tracking-widest text-on-surface-variant font-bold">목표 기한</label>
+                                            <input 
+                                                type="date" 
+                                                value={editGoalDate} 
+                                                onChange={e => setEditGoalDate(e.target.value)}
+                                                className="w-full bg-surface-container-lowest border-none rounded-xl p-3 text-sm font-semibold text-on-surface"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2 justify-end pt-2">
+                                        <button onClick={() => setIsEditingGoal(false)} className="px-4 py-2 bg-surface-container rounded-xl text-xs font-bold text-on-surface-variant">취소</button>
+                                        <button onClick={handleSaveGoal} className="px-4 py-2 bg-primary rounded-xl text-xs font-bold text-on-primary">저장</button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    <div className="w-full h-2.5 bg-surface-container-high rounded-full overflow-hidden">
+                                        <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: `${Math.min(100, percent)}%` }}></div>
+                                    </div>
+                                    <div className="flex justify-between items-baseline text-xs text-on-surface-variant">
+                                        <span className="font-bold text-primary">{percent.toFixed(1)}% 달성</span>
+                                        <span>₩{formatCurrency(totalAsset)} / ₩{formatCurrency(targetAmountVal)}</span>
+                                    </div>
+                                    {remainingToGoal > 0 ? (
+                                        <p className="text-xs text-on-surface-variant font-medium pt-1 border-t border-outline-variant/10">
+                                            목표 금액까지 <strong className="text-on-surface font-extrabold">₩{formatCurrency(remainingToGoal)}</strong> 남았습니다.
+                                        </p>
+                                    ) : (
+                                        <p className="text-xs text-emerald-600 font-extrabold pt-1 border-t border-outline-variant/10 flex items-center gap-1">
+                                            <span className="material-symbols-outlined text-[16px]">celebration</span> 축하합니다! 저축 목표를 달성했습니다!
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+                        </section>
+
+                        {/* 2. 보유 자산 목록 (My Asset) */}
+                        <section className="p-6 bg-surface-container-low rounded-[2rem] border border-outline-variant/20 shadow-sm space-y-4">
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <p className="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold mb-0.5">보유 자산 현황</p>
+                                    <h3 className="text-lg font-black text-on-surface">₩{formatCurrency(totalAsset)}</h3>
+                                </div>
+                                <button 
+                                    onClick={() => setIsAddingAsset(!isAddingAsset)} 
+                                    className="px-3 py-1.5 bg-primary text-on-primary text-xs font-bold rounded-full hover:opacity-90 active:scale-95 transition-all flex items-center gap-1"
+                                >
+                                    <span className="material-symbols-outlined text-[14px]">add</span>자산 추가
+                                </button>
+                            </div>
+
+                            {/* Add Asset Inline Form */}
+                            {isAddingAsset && (
+                                <div className="p-4 bg-surface-container rounded-2xl space-y-3 border border-outline-variant/20 animate-in fade-in duration-200">
+                                    <div className="space-y-1">
+                                        <label className="text-[9px] uppercase tracking-widest text-on-surface-variant font-bold">자금명</label>
+                                        <input 
+                                            type="text" 
+                                            value={newAssetName} 
+                                            onChange={e => setNewAssetName(e.target.value)}
+                                            className="w-full bg-surface-container-lowest border-none rounded-xl p-2.5 text-xs font-semibold text-on-surface"
+                                            placeholder="예: 토스 키워봐요 적금"
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] uppercase tracking-widest text-on-surface-variant font-bold">금액 (₩)</label>
+                                            <input 
+                                                type="text" 
+                                                value={newAssetAmount} 
+                                                onChange={e => handleNumberInput(e.target.value, setNewAssetAmount)}
+                                                className="w-full bg-surface-container-lowest border-none rounded-xl p-2.5 text-xs font-semibold text-on-surface"
+                                                placeholder="5,200,000"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] uppercase tracking-widest text-on-surface-variant font-bold">비고 (만기일 등)</label>
+                                            <input 
+                                                type="text" 
+                                                value={newAssetMemo} 
+                                                onChange={e => setNewAssetMemo(e.target.value)}
+                                                className="w-full bg-surface-container-lowest border-none rounded-xl p-2.5 text-xs font-semibold text-on-surface"
+                                                placeholder="26.08.01 만기"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2 justify-end pt-1">
+                                        <button onClick={() => setIsAddingAsset(false)} className="px-3 py-1.5 bg-surface-container rounded-lg text-xs font-bold text-on-surface-variant">취소</button>
+                                        <button onClick={handleAddAsset} className="px-3 py-1.5 bg-primary rounded-lg text-xs font-bold text-on-primary">추가</button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Asset Table */}
+                            <div className="divide-y divide-outline-variant/10 pt-2">
+                                {assets.map(asset => (
+                                    <div key={asset.id} className="py-3 flex justify-between items-center group">
+                                        <div className="flex-1">
+                                            <p className="font-bold text-on-surface text-sm">{asset.name}</p>
+                                            {asset.memo && <p className="text-[10px] text-on-surface-variant font-medium mt-0.5">{asset.memo}</p>}
+                                        </div>
+                                        {editingAssetId === asset.id ? (
+                                            <div className="flex items-center gap-2 animate-in fade-in duration-100">
+                                                <input 
+                                                    type="text" 
+                                                    value={editAssetAmount} 
+                                                    onChange={e => handleNumberInput(e.target.value, setEditAssetAmount)}
+                                                    className="w-24 bg-surface-container border-none rounded-lg p-1.5 text-xs text-right font-bold text-on-surface focus:ring-1 focus:ring-primary"
+                                                />
+                                                <input 
+                                                    type="text" 
+                                                    value={editAssetMemo} 
+                                                    onChange={e => setEditAssetMemo(e.target.value)}
+                                                    className="w-24 bg-surface-container border-none rounded-lg p-1.5 text-xs text-right font-medium text-on-surface focus:ring-1 focus:ring-primary"
+                                                    placeholder="비고"
+                                                />
+                                                <button onClick={() => handleSaveAssetEdit(asset.id)} className="text-primary hover:opacity-80">
+                                                    <span className="material-symbols-outlined text-[18px]">done</span>
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center gap-3">
+                                                <span className="font-extrabold text-on-surface text-sm">₩{formatCurrency(asset.amount)}</span>
+                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button onClick={() => startEditAsset(asset)} className="text-on-surface-variant hover:text-primary transition-colors">
+                                                        <span className="material-symbols-outlined text-[16px]">edit</span>
+                                                    </button>
+                                                    <button onClick={() => handleDeleteAsset(asset.id)} className="text-on-surface-variant hover:text-red-500 transition-colors">
+                                                        <span className="material-symbols-outlined text-[16px]">delete</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+
+                        {/* 3. 생활비 다이어리 통계 및 한도 설정 */}
+                        <section className="space-y-4">
+                            <div className="flex justify-between items-baseline px-2">
+                                <h3 className="text-sm font-bold text-on-surface-variant uppercase tracking-widest">생활비 설정 및 일지</h3>
+                                <button onClick={isEditingBudget ? () => setIsEditingBudget(false) : startEditBudget} className="text-xs font-bold text-primary flex items-center gap-0.5">
+                                    <span className="material-symbols-outlined text-[14px]">settings</span>설정 변경
+                                </button>
+                            </div>
+
+                            {isEditingBudget && (
+                                <div className="p-5 bg-surface-container-low rounded-[2rem] border border-outline-variant/20 shadow-sm space-y-4 animate-in fade-in duration-200">
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] uppercase tracking-widest text-on-surface-variant font-bold">생활비 한도 (₩)</label>
+                                            <input 
+                                                type="text" 
+                                                value={editBudgetLimit} 
+                                                onChange={e => handleNumberInput(e.target.value, setEditBudgetLimit)}
+                                                className="w-full bg-surface-container-lowest border-none rounded-xl p-3 text-sm font-semibold text-on-surface"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] uppercase tracking-widest text-on-surface-variant font-bold">고정 비용 (₩)</label>
+                                            <input 
+                                                type="text" 
+                                                value={editBudgetFixed} 
+                                                onChange={e => handleNumberInput(e.target.value, setEditBudgetFixed)}
+                                                className="w-full bg-surface-container-lowest border-none rounded-xl p-3 text-sm font-semibold text-on-surface"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[9px] uppercase tracking-widest text-on-surface-variant font-bold">고정 비용 메모</label>
+                                        <input 
+                                            type="text" 
+                                            value={editBudgetFixedMemo} 
+                                            onChange={e => setEditBudgetFixedMemo(e.target.value)}
+                                            className="w-full bg-surface-container-lowest border-none rounded-xl p-3 text-sm font-semibold text-on-surface"
+                                            placeholder="예: 38(집세)+20(반차)+10(보험,교통)..."
+                                        />
+                                    </div>
+                                    <div className="flex gap-2 justify-end pt-1">
+                                        <button onClick={() => setIsEditingBudget(false)} className="px-4 py-2 bg-surface-container rounded-xl text-xs font-bold text-on-surface-variant">취소</button>
+                                        <button onClick={handleSaveBudgetSettings} className="px-4 py-2 bg-primary rounded-xl text-xs font-bold text-on-primary">저장</button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* 생활비 요약 카드 */}
+                            <div className="p-6 bg-surface-container-low rounded-[2rem] border border-outline-variant/20 shadow-sm space-y-4">
+                                <div className="grid grid-cols-2 gap-4 divide-x divide-outline-variant/10">
+                                    <div>
+                                        <p className="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest mb-1">남은 생활비</p>
+                                        <h4 className="text-xl font-black text-primary">₩{formatCurrency(remainingBudget)}</h4>
+                                    </div>
+                                    <div className="pl-4">
+                                        <p className="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest mb-1">오늘 사용 가능액</p>
+                                        <h4 className="text-xl font-black text-on-surface">₩{formatCurrency(dailySpendLimit)} <span className="text-xs font-bold text-on-surface-variant">/ 일</span></h4>
+                                    </div>
+                                </div>
+
+                                <div className="pt-3 border-t border-outline-variant/10 flex justify-between items-center text-xs text-on-surface-variant font-medium">
+                                    <span>이번 달 지출: ₩{formatCurrency(totalSpent)} (한도: ₩{formatCurrency(monthlyLimitVal)})</span>
+                                    <span>남은 기한: {remainingDays}일</span>
+                                </div>
+
+                                {budgetSettings && budgetSettings.fixedCostsMemo && (
+                                    <div className="pt-2.5 border-t border-outline-variant/10 flex items-start gap-1 text-[11px] text-on-surface-variant">
+                                        <span className="material-symbols-outlined text-[14px] text-primary mt-0.5">info</span>
+                                        <span>고정 비용: {budgetSettings.fixedCostsMemo} (₩{formatCurrency(budgetSettings.fixedCosts)})</span>
+                                    </div>
+                                )}
+                            </div>
+                        </section>
+
+                        {/* 4. 지출 일지 한 줄 등록 양식 */}
+                        <section className="p-6 bg-surface-container-low rounded-[2rem] border border-outline-variant/20 shadow-sm space-y-4">
+                            <h4 className="text-sm font-bold text-on-surface">생활비 지출 일지 추가</h4>
+                            <div className="space-y-3">
+                                <div className="grid grid-cols-2 gap-2">
+                                    <input 
+                                        type="text" 
+                                        value={newLogTitle} 
+                                        onChange={e => setNewLogTitle(e.target.value)}
+                                        className="w-full bg-surface-container-lowest border-none rounded-xl p-3 text-xs font-semibold text-on-surface"
+                                        placeholder="지출 항목 (예: 양쯔깐루)"
+                                    />
+                                    <input 
+                                        type="text" 
+                                        value={newLogAmount} 
+                                        onChange={e => handleNumberInput(e.target.value, setNewLogAmount)}
+                                        className="w-full bg-surface-container-lowest border-none rounded-xl p-3 text-xs font-semibold text-on-surface"
+                                        placeholder="금액 (예: 10,900)"
+                                    />
+                                </div>
+                                <div className="flex gap-2">
+                                    <input 
+                                        type="date" 
+                                        value={newLogDate} 
+                                        onChange={e => setNewLogDate(e.target.value)}
+                                        className="flex-1 bg-surface-container-lowest border-none rounded-xl p-3 text-xs font-semibold text-on-surface"
+                                    />
+                                    <button 
+                                        onClick={handleAddBudgetLog}
+                                        disabled={!newLogTitle || !newLogAmount}
+                                        className={`px-6 py-3 rounded-xl font-bold text-xs transition-all ${(!newLogTitle || !newLogAmount) ? 'bg-surface-variant text-on-surface-variant' : 'bg-primary text-on-primary active:scale-95 shadow-sm shadow-primary/10'}`}
+                                    >
+                                        기록
+                                    </button>
+                                </div>
+                            </div>
+                        </section>
+
+                        {/* 5. 생활비 차감 릴레이 피드 (Timeline Logs) */}
+                        <section className="space-y-4">
+                            <h4 className="text-xs font-bold text-on-surface-variant uppercase tracking-widest px-2">차감 내역 타임라인</h4>
+                            
+                            <div className="space-y-6">
+                                {groupedList.map(group => (
+                                    <div key={group.date} className="p-5 bg-surface-container-low rounded-[2rem] border border-outline-variant/10 shadow-sm space-y-3">
+                                        <div className="flex justify-between items-baseline pb-2 border-b border-outline-variant/10">
+                                            <span className="font-extrabold text-sm text-on-surface">{formatDateHeader(group.date)}</span>
+                                            <span className="text-xs text-primary font-bold">남은 생활비: ₩{formatCurrency(group.endBalance)}</span>
+                                        </div>
+                                        <div className="space-y-2">
+                                            {group.items.map(item => (
+                                                <div key={item.id} className="flex justify-between items-center text-xs text-on-surface py-1 group">
+                                                    <span className="font-semibold text-on-surface-variant">{item.title}</span>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-black text-on-surface">₩{formatCurrency(item.amount)}</span>
+                                                        <button 
+                                                            onClick={() => handleDeleteBudgetLog(item.id)} 
+                                                            className="text-on-surface-variant hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                        >
+                                                            <span className="material-symbols-outlined text-[14px]">close</span>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+
+                                {groupedList.length === 0 && (
+                                    <div className="text-center py-8 text-sm text-on-surface-variant">
+                                        기록된 생활비 지출 내역이 없습니다.
+                                    </div>
+                                )}
+                            </div>
+                        </section>
+
+                    </main>
+                    <BottomNavBar />
+                </div>
+            );
+        };
+
+
         // Screen 2: Installment Archive
         const ArchivePage = () => {
             const { expenses, cards, setCards, categories, setCategories, user, handleLogout, handleKakaoLogin, isLoading } = useContext(DataContext);
@@ -1051,6 +1659,7 @@
                         <Routes>
                             <Route path="/" element={<DashboardPage />} />
                             <Route path="/timeline" element={<TimelinePage />} />
+                            <Route path="/asset" element={<AssetPage />} />
                             <Route path="/archive" element={<ArchivePage />} />
                             <Route path="/add-expense" element={<AddExpensePage />} />
                         </Routes>
